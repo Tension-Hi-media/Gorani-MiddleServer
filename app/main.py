@@ -18,14 +18,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-@app.post("/translate")
+# 추후 삭제하자!!!
+@app.post("/translate", tags=["Translation"])
 async def translate(request: TranslateRequest):
     # 받은 JSON 데이터 처리
     translated_text = f"Translated: {request.text}"
     return {"translated_text": translated_text}
 
-@app.post("/translate/onlygpt")
-async def translate(request: Request):
+@app.post("/translate/onlygpt", tags=["Translation"])
+async def translateWithGPT(request: TranslateRequest):
     try:
         body = await request.json()
         text = body.get("text", "")
