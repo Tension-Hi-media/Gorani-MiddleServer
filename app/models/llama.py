@@ -11,4 +11,5 @@ model, tokenizer = FastLanguageModel.from_pretrained(
     dtype = dtype,
     load_in_4bit = load_in_4bit,
 )
+
 FastLanguageModel.for_inference(model) # Enable native 2x faster inference
