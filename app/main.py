@@ -46,9 +46,9 @@ async def translate(request: TranslateRequest):
     try:
         print(request)
 
-        if request.target_lang == '한국어':
+        if request.target_lang == 'ko':
             request.target_lang = 'korean'
-        elif request.target_lang == '영어':
+        elif request.target_lang == 'en':
             request.target_lang = 'english'
         else:
             request.target_lang = 'Japanese'
@@ -60,6 +60,9 @@ async def translate(request: TranslateRequest):
             "glossary": create_metadata_array(request.text, 10),
             "user_message": request.text
         }).lstrip("\n")
+
+        print(create_metadata_array(request.text, 10))
+        print(response)
 
         return TranslateResponse(
             answer=response
