@@ -1,5 +1,5 @@
 import httpx
-import asyncio
+import re
 from fastapi import APIRouter, HTTPException
 import logging
 from app.models.schemas import TranslateRequest, TranslateResponse
@@ -9,25 +9,36 @@ router = APIRouter()
 logger = logging.getLogger(__name__)
 
 # ✅ Runpod Gorani(Llama) 모델 주소 (Runpod Proxy URL 사용)
-RUNPOD_MODEL_URL = "https://3m392zclj3zw79-5000.proxy.runpod.net/translate"
+RUNPOD_MODEL_URL = "https://8309-221-148-97-237.ngrok-free.app/translate/Gorani"
 
 # ✅ **번역을 명확히 요청하는 프롬프트 설정**
-TRANSLATION_PROMPT = """You are a professional translator. 
-Translate the given text from {source_lang} to {target_lang}.
-Do not explain or provide additional information. 
+TRANSLATION_PROMPT = """
+### Instruction:
+You are a translation assistant. However, you must NOT introduce yourself or mention that you are an assistant.
+- Translate the text provided under 'Input' from {src_lang} to {target_language}.
+- Output ONLY the translated text as a plain string.
+- Do NOT include explanations, introductions, or formatting.
+- Do NOT prefix or suffix the translation with any extra words.
+- Ensure that the output does NOT contain the words "assistant", "Translation", "Here is the result:", or similar phrases.
 
-### Source Text:
-{text}
+### Target Language:
+{target_language}
 
-### Translated Text:
+### Input:
+{input_text}
+
+### Response:
 """
 
-async def translate_with_gorani(text: str, source_lang: str = "ko", target_lang: str = "en", model: str = "Gorani") -> str:
+async def translate_with_gorani(
+    text: str, source_lang: str = "ko", target_lang: str = "en", model: str = "Gorani"
+) -> str:
     """
     Runpod의 Gorani(Llama) 모델을 호출하여 번역 수행
     """
-    # ✅ **수정된 프롬프트 적용**
-    prompt = TRANSLATION_PROMPT.format(source_lang=source_lang, target_lang=target_lang, text=text)
+    prompt = TRANSLATION_PROMPT.format(
+        src_lang=source_lang, target_language=target_lang, input_text=text
+    )
 
     payload = {
         "text": prompt,
@@ -36,20 +47,39 @@ async def translate_with_gorani(text: str, source_lang: str = "ko", target_lang:
         "model": model
     }
 
-    async with httpx.AsyncClient(timeout=60.0) as client:  # ✅ 타임아웃 60초 설정
+    logger.info(f"📤 Runpod 요청 Payload: {payload}")  # ✅ 요청 로그 추가
+
+    async with httpx.AsyncClient(timeout=60.0) as client:
         try:
             response = await client.post(RUNPOD_MODEL_URL, json=payload)
 
-            # ✅ 응답 상태 코드 체크
             if response.status_code != 200:
                 logger.error(f"❌ Runpod 응답 오류: {response.status_code} - {response.text}")
                 raise HTTPException(status_code=502, detail=f"Runpod 응답 오류: {response.status_code}")
 
-            # ✅ JSON 응답 구조 확인 및 예외 처리
             try:
                 response_data = response.json()
                 logger.info(f"✅ Runpod 응답: {response_data}")
-                return response_data.get("output", "번역 실패").strip()
+
+                # ✅ `answer` 키에서 번역된 내용만 추출
+                raw_text = response_data.get("answer", "").strip()
+
+                # ✅ 패턴을 이용해 불필요한 설명 제거
+                match = re.search(r'The text translates to:\s*"(.+?)"', raw_text, re.DOTALL)
+
+                if match:
+                    translated_text = match.group(1).strip()
+                else:
+                    # ✅ 만약 위 패턴이 없으면 전체 응답 중 가장 마지막 따옴표 내부 내용을 가져옴
+                    match_alt = re.findall(r'"(.*?)"', raw_text)
+                    translated_text = match_alt[-1] if match_alt else raw_text
+
+                if not translated_text:
+                    logger.error(f"❌ 번역 실패 - 응답 내용: {response_data}")
+                    raise HTTPException(status_code=502, detail="Runpod에서 번역 결과를 받지 못했습니다.")
+
+                return translated_text  # ✅ 번역된 텍스트만 반환
+
             except ValueError:
                 logger.error(f"❌ JSON 파싱 오류 - 응답 내용: {response.text}")
                 raise HTTPException(status_code=502, detail="Runpod 응답 JSON 파싱 오류")
