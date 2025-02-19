@@ -15,5 +15,8 @@ COPY . .
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
+
 # ✅ 컨테이너 실행 시 entrypoint.sh 실행
 CMD ["/entrypoint.sh"]
+
+
