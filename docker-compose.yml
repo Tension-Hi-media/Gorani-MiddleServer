@@ -33,4 +33,5 @@ services:
       - CELERY_RESULT_BACKEND=redis://redis:6379/0
     env_file:
       - .env  # ✅ .env 파일 추가
-    command: celery -A app.celery_worker worker --loglevel=info --pool=solo
+    command: celery -A app.services.celery_worker:celery_app worker --loglevel=info --pool=solo
+
